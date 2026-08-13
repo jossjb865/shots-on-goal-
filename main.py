@@ -9,6 +9,7 @@ from config import (
 )
 
 def save_report(content):
+    """Guarda el reporte formateado en la carpeta /reportes del repositorio."""
     os.makedirs("reportes", exist_ok=True)
     filename = f"reportes/lineas_seguras_{datetime.now().strftime('%Y-%m-%d')}.md"
     with open(filename, "a", encoding="utf-8") as f:
@@ -21,14 +22,13 @@ def process_top_games():
     fixtures = call_isports("/sport/football/schedule", params={"date": today_str})
     
     if not fixtures:
-        print("No se encontraron partidos en vivo para hoy. Ejecutando análisis de contingencia...")
-        run_contingency_analysis()
+        print("No se obtuvieron partidos de iSportsAPI para la fecha actual.")
         return
 
-    # Filtrar partidos pertenecientes a Ligas Top
+    # Priorizar partidos de Ligas Élite
     top_matches = [m for m in fixtures if m.get("leagueId") in TOP_LEAGUES]
     
-    # Si no hay suficientes de ligas top, tomar los primeros 10 disponibles
+    # Si hay menos de 10 en ligas élite, tomar los primeros 10 disponibles
     if len(top_matches) < 10:
         top_matches = fixtures[:10]
     else:
@@ -42,24 +42,43 @@ def process_top_games():
         away_name = match.get("awayName", "Visita")
         league_id = match.get("leagueId", "N/A")
 
-        # 1. Estadísticas de TheStatsAPI
+        # 1. Extracción dinámica de estadísticas en TheStatsAPI (/matches/{match_id}/stats)
         stats_data = get_thestats_data(f"/matches/{match_id}/stats")
         
-        # 2. Cuotas de iSportsAPI
+        # Parseo de Lambdas (se leen métricas directas del JSON o fallback a 0)
+        lambda_corners = float(
+            stats_data.get("corners_avg", 
+            stats_data.get("expected_corners", 
+            stats_data.get("corners", {}).get("total_avg", 0)))
+        )
+        lambda_shots = float(
+            stats_data.get("shots_on_target_avg", 
+            stats_data.get("expected_shots", 
+            stats_data.get("shots", {}).get("on_target_avg", 0)))
+        )
+
+        # Si no existen estadísticas suficientes para este evento, omitir
+        if lambda_corners == 0 and lambda_shots == 0:
+            print(f"⚠️ Sin datos cuantitativos suficientes para: {home_name} vs {away_name} (ID: {match_id})")
+            continue
+
+        # 2. Extracción dinámica de cuotas en iSportsAPI (/sport/football/odds)
         odds_data = call_isports("/sport/football/odds", params={"matchId": match_id})
+        
+        market_odds_corners = "N/A"
+        market_odds_shots = "N/A"
 
-        # Extracción de promedios para proyectar Lambdas
-        # (Si no hay datos aún, el modelo usa la media histórica del matchup)
-        lambda_corners = stats_data.get("expected_corners", 9.5)
-        lambda_shots = stats_data.get("expected_shots", 8.2)
+        if isinstance(odds_data, list) and len(odds_data) > 0:
+            # Obtiene cuota del primer operador disponible
+            bookie = odds_data[0]
+            market_odds_corners = bookie.get("corners", {}).get("over_price", "N/A")
+            market_odds_shots = bookie.get("shots", {}).get("over_price", "N/A")
 
-        # Cálculo de Línea Segura (>= 80%)
+        # 3. Evaluación en el Motor Poisson (Filtro >= 80% Probabilidad)
         safe_corners, prob_c = get_safe_line(lambda_corners, threshold=0.80)
         safe_shots, prob_s = get_safe_line(lambda_shots, threshold=0.80)
 
-        # Buscar cuota del mercado en iSportsAPI
-        market_odds_corners = "1.80" # Cuota referencia de iSportsAPI
-
+        # Si alguna métrica supera el umbral del 80%, redacta el reporte
         if safe_corners or safe_shots:
             report_text = (
                 f"### 🏆 [TOP MATCH] {home_name} vs {away_name}\n"
@@ -70,34 +89,20 @@ def process_top_games():
             if safe_corners:
                 report_text += (
                     f"* 🚩 **Córners:** Apuestas a **{safe_corners}**\n"
-                    f"  * Proyección Stats: `{lambda_corners:.1f}` | Probabilidad: **{prob_c*100:.1f}%**\n"
-                    f"  * Cuota en iSportsAPI: `{market_odds_corners}`\n"
+                    f"  * Proyección Stats: `{lambda_corners:.2f}` | Probabilidad: **{prob_c*100:.1f}%**\n"
+                    f"  * Cuota iSportsAPI: `{market_odds_corners}`\n"
                 )
             if safe_shots:
                 report_text += (
                     f"* 🎯 **Remates al Arco:** Apuestas a **{safe_shots}**\n"
-                    f"  * Proyección Stats: `{lambda_shots:.1f}` | Probabilidad: **{prob_s*100:.1f}%**\n"
+                    f"  * Proyección Stats: `{lambda_shots:.2f}` | Probabilidad: **{prob_s*100:.1f}%**\n"
+                    f"  * Cuota iSportsAPI: `{market_odds_shots}`\n"
                 )
 
             print(report_text)
             save_report(report_text)
 
         time.sleep(0.5)
-
-def run_contingency_analysis():
-    # Ejemplo con un partido Top si las APIs aún no habilitan los juegos del día
-    report_text = (
-        f"### 🏆 [TOP MATCH DEMO] Real Madrid vs Manchester City\n"
-        f"* **Hora de Análisis:** `{datetime.now().strftime('%H:%M:%S')} UTC`\n\n"
-        f"* 🚩 **Córners:** Apuesta Recomendada a **Over 7.5**\n"
-        f"  * Proyección TheStatsAPI: `10.8` | Probabilidad: **83.2%**\n"
-        f"  * Cuota iSportsAPI: `1.85`\n"
-        f"* 🎯 **Remates al Arco:** Apuesta Recomendada a **Over 8.5**\n"
-        f"  * Proyección TheStatsAPI: `11.2` | Probabilidad: **81.7%**\n"
-        f"  * Cuota iSportsAPI: `1.90`\n"
-    )
-    print(report_text)
-    save_report(report_text)
 
 if __name__ == "__main__":
     process_top_games()

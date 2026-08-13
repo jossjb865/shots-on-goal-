@@ -4,69 +4,74 @@ import numpy as np
 from scipy.stats import poisson
 
 # Claves de API desde GitHub Secrets
-ISPORTS_KEY = os.environ.get("ISPORTS_API_KEY")
 THESTATS_KEY = os.environ.get("THESTATS_API_KEY")
+ISPORTS_KEY = os.environ.get("ISPORTS_API_KEY")
 
 # Endpoints base
-ISPORTS_PRIMARY = "https://api.isportsapi.com"
-ISPORTS_SECONDARY = "https://api2.isportsapi.com"
-THESTATS_BASE = "https://api.thestatsapi.com/api/football"
+THESTATS_BASE = "https://api.thestatsapi.com/api/v1/football"
+ISPORTS_BASE = "https://api.isportsapi.com"
 
-# IDs Oficiales iSportsAPI para Ligas Élite
-TOP_LEAGUES = [
-    31,    # LaLiga (España)
-    36,    # Premier League (Inglaterra)
-    34,    # Serie A (Italia)
-    8,     # Bundesliga (Alemania)
-    11,    # Ligue 1 (Francia)
-    684,   # UEFA Champions League
-    118,   # Liga MX
-    1987   # Brasileirão Serie A
+# Ligas Prioritarias en TheStatsAPI (Série A Brasil, Liga MX, Premier, LaLiga, etc.)
+TOP_LEAGUES_STATS = [
+    "premier-league",
+    "la-liga",
+    "serie-a",
+    "bundesliga",
+    "ligue-1",
+    "brasileiro-serie-a",
+    "liga-mx",
+    "champions-league"
 ]
 
-def call_isports(path, params=None):
-    """Conector a iSportsAPI con conmutación automática en caso de error."""
+def call_thestats_api(endpoint, params=None):
+    """Conector primario exclusivo para TheStatsAPI vía Bearer Token."""
     if params is None:
         params = {}
-    params['api_key'] = ISPORTS_KEY
     
-    # Intento 1: Servidor Principal
+    url = f"{THESTATS_BASE}{endpoint}"
+    headers = {
+        "Authorization": f"Bearer {THESTATS_KEY}",
+        "Accept": "application/json"
+    }
+    
     try:
-        res = requests.get(f"{ISPORTS_PRIMARY}{path}", params=params, timeout=10)
+        res = requests.get(url, headers=headers, params=params, timeout=12)
+        if res.status_code == 200:
+            data = res.json()
+            # Retorna data directa o el wrapper segun el schema de TheStatsAPI
+            return data.get("data", data)
+        else:
+            print(f"⚠️ TheStatsAPI HTTP {res.status_code} en {endpoint}")
+            return None
+    except Exception as e:
+        print(f"❌ Error conectando con TheStatsAPI ({endpoint}): {e}")
+        return None
+
+def call_isports_odds(match_id):
+    """Consulta secundaria de cuotas a iSportsAPI."""
+    if not ISPORTS_KEY:
+        return "1.83", "1.85"
+    
+    url = f"{ISPORTS_BASE}/sport/football/odds"
+    params = {"api_key": ISPORTS_KEY, "matchId": match_id}
+    try:
+        res = requests.get(url, params=params, timeout=8)
         data = res.json()
-        if data.get("code") == 0:
-            return data.get("data", [])
+        if data.get("code") == 0 and data.get("data"):
+            bookie = data["data"][0]
+            c_odds = bookie.get("corners", {}).get("over_price", "1.83")
+            s_odds = bookie.get("shots", {}).get("over_price", "1.85")
+            return str(c_odds), str(s_odds)
     except Exception:
         pass
-
-    # Intento 2: Servidor Secundario (api2)
-    try:
-        res = requests.get(f"{ISPORTS_SECONDARY}{path}", params=params, timeout=10)
-        data = res.json()
-        if data.get("code") == 0:
-            return data.get("data", [])
-    except Exception as e:
-        print(f"Error en iSportsAPI ({path}): {e}")
-        
-    return []
-
-def get_thestats_data(path):
-    """Conector a TheStatsAPI con autenticación por Bearer Token."""
-    url = f"{THESTATS_BASE}{path}"
-    headers = {"Authorization": f"Bearer {THESTATS_KEY}"}
-    try:
-        res = requests.get(url, headers=headers, timeout=10)
-        return res.json() if res.status_code == 200 else {}
-    except Exception as e:
-        print(f"Error en TheStatsAPI ({path}): {e}")
-        return {}
+    return "1.83", "1.85"
 
 def get_safe_line(lambda_total, threshold=0.80):
     """
-    Motor Cuantitativo: Calcula la línea de Over más alta 
-    con probabilidad acumulada Poisson >= 80%
+    Motor Cuantitativo Poisson
+    Calcula la línea de Over más alta con P(X > k) >= 80%
     """
-    if lambda_total <= 0:
+    if not lambda_total or lambda_total <= 0:
         return None, 0.0
 
     lines = [3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5]
@@ -75,8 +80,7 @@ def get_safe_line(lambda_total, threshold=0.80):
 
     for line in lines:
         k = int(np.floor(line))
-        # Probabilidad P(X > line) = 1 - CDF(k)
-        prob_over = 1 - poisson.cdf(k, lambda_total)
+        prob_over = 1.0 - poisson.cdf(k, lambda_total)
         
         if prob_over >= threshold:
             safe_line = f"Over {line}"

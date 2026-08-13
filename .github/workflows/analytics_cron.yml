@@ -1,0 +1,42 @@
+name: GoalAnalytics Engine (Local Reports)
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Ejecución cada hora
+  workflow_dispatch:     # Permite ejecución manual desde el celular
+
+permissions:
+  contents: write # Otorga permiso para guardar archivos en el repositorio
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar Engine de Análisis
+        env:
+          ISPORTS_API_KEY: ${{ secrets.ISPORTS_API_KEY }}
+          THESTATS_API_KEY: ${{ secrets.THESTATS_API_KEY }}
+        run: |
+          python main.py
+
+      - name: Guardar Reporte en el Repositorio
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git add reportes/
+          git diff-index --quiet HEAD || git commit -m "Auto-update: Reporte de Líneas Seguras"
+          git push

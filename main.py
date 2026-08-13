@@ -2,127 +2,143 @@ import os
 import time
 from datetime import datetime
 from config import (
-    call_isports,
-    get_thestats_data,
+    call_thestats_api,
+    call_isports_odds,
     get_safe_line,
-    TOP_LEAGUES
+    TOP_LEAGUES_STATS
 )
 
 def save_report(content):
-    """Guarda las alertas en la carpeta /reportes del repositorio."""
+    """Guarda el reporte cuantitativo en formato Markdown."""
     os.makedirs("reportes", exist_ok=True)
     filename = f"reportes/lineas_seguras_{datetime.now().strftime('%Y-%m-%d')}.md"
     with open(filename, "a", encoding="utf-8") as f:
         f.write(content + "\n\n---\n\n")
 
-def extract_averages(analysis_data):
+def parse_thestats_metrics(match_detail):
     """
-    Extrae dinámicamente el promedio de córners y remates.
-    Soporta múltiples estructuras JSON de iSportsAPI.
+    Extrae de forma precisa los promedios/expectativas reales 
+    desde el objeto de TheStatsAPI.
     """
-    if not analysis_data or not isinstance(analysis_data, dict):
-        return 9.5, 8.5 # Media histórica global por defecto si la API omite el desglose
+    if not match_detail or not isinstance(match_detail, dict):
+        return None, None
 
-    home_recent = analysis_data.get("homeRecent", [])
-    away_recent = analysis_data.get("awayRecent", [])
+    # Mapeo de campos estadísticos avanzados de TheStatsAPI
+    stats = match_detail.get("stats", match_detail)
+    expectations = match_detail.get("expectations", {})
+    
+    # Busca la media o expectativa calculada por TheStatsAPI
+    lambda_corners = (
+        expectations.get("expected_corners") or 
+        stats.get("corners_avg") or 
+        stats.get("corners_total_mean")
+    )
+    
+    lambda_shots = (
+        expectations.get("expected_shots_on_target") or 
+        stats.get("shots_on_target_avg") or 
+        stats.get("shots_on_target_mean")
+    )
 
-    c_vals = []
-    s_vals = []
+    # Si vienen desglosadas por equipo Local y Visitante en TheStatsAPI, las suma:
+    if lambda_corners is None:
+        home_c = stats.get("home_corners_avg", 0)
+        away_c = stats.get("away_corners_avg", 0)
+        if home_c > 0 or away_c > 0:
+            lambda_corners = float(home_c) + float(away_c)
 
-    # Extraer de partidos recientes del Local
-    for m in home_recent[:5]:
-        c = m.get("homeCorner") or m.get("corners") or m.get("home_corner")
-        s = m.get("homeShotOnGoal") or m.get("shotsOnGoal") or m.get("home_shots")
-        if c is not None: c_vals.append(float(c))
-        if s is not None: s_vals.append(float(s))
+    if lambda_shots is None:
+        home_s = stats.get("home_shots_on_target_avg", 0)
+        away_s = stats.get("away_shots_on_target_avg", 0)
+        if home_s > 0 or away_s > 0:
+            lambda_shots = float(home_s) + float(away_s)
 
-    # Extraer de partidos recientes de la Visita
-    for m in away_recent[:5]:
-        c = m.get("awayCorner") or m.get("corners") or m.get("away_corner")
-        s = m.get("awayShotOnGoal") or m.get("shotsOnGoal") or m.get("away_shots")
-        if c is not None: c_vals.append(float(c))
-        if s is not None: s_vals.append(float(s))
+    # Conversión estricta a float
+    try:
+        c_val = float(lambda_corners) if lambda_corners else None
+        s_val = float(lambda_shots) if lambda_shots else None
+        return c_val, s_val
+    except (ValueError, TypeError):
+        return None, None
 
-    # Si se encontraron datos en el JSON se calcula la media, si no, se usa baseline cuantitativo
-    avg_corners = (sum(c_vals) / len(c_vals)) if c_vals else 9.6
-    avg_shots = (sum(s_vals) / len(s_vals)) if s_vals else 8.4
-
-    return avg_corners, avg_shots
-
-def process_top_games():
-    print("🚀 Buscando los 10 partidos TOP y procesando cuotas/métricas...")
+def process_thestats_pipeline():
+    print("🚀 Iniciando Motor Cuantitativo centrado exclusivamente en TheStatsAPI...")
     
     today_str = datetime.now().strftime('%Y-%m-%d')
-    fixtures = call_isports("/sport/football/schedule", params={"date": today_str})
     
-    if not fixtures:
-        # Fallback si se consulta en una hora donde el schedule de hoy está vacío
-        fixtures = call_isports("/sport/football/schedule")
+    # 1. Obtener accesorios/partidos del día desde TheStatsAPI
+    fixtures = call_thestats_api("/matches", params={"date": today_str})
+    
+    if not fixtures or not isinstance(fixtures, list):
+        print("ℹ️ Probando consulta de proximos eventos en TheStatsAPI...")
+        fixtures = call_thestats_api("/fixtures/upcoming")
         
-    if not fixtures:
-        print("❌ No se obtuvieron partidos de iSportsAPI.")
+    if not fixtures or not isinstance(fixtures, list):
+        print("❌ No se pudieron recuperar eventos desde TheStatsAPI. Revisa la validez de THESTATS_API_KEY.")
         return
 
-    # Priorizar por Ligas Top o tomar los primeros 10 disponibles
-    top_matches = [m for m in fixtures if m.get("leagueId") in TOP_LEAGUES]
-    if len(top_matches) < 10:
-        top_matches = fixtures[:10]
-    else:
-        top_matches = top_matches[:10]
+    print(f"📊 {len(fixtures)} eventos recuperados desde TheStatsAPI. Filtrando datos...")
 
-    print(f"📌 Procesando {len(top_matches)} partidos con el Motor Poisson...")
+    analyzed_count = 0
+    picks_count = 0
 
-    for match in top_matches:
-        match_id = match.get("matchId")
-        home_name = match.get("homeName", "Local")
-        away_name = match.get("awayName", "Visita")
-        league_id = match.get("leagueId", "N/A")
+    for match in fixtures:
+        match_id = match.get("id") or match.get("match_id")
+        home_team = match.get("home_team", {}).get("name") or match.get("home_name", "Local")
+        away_team = match.get("away_team", {}).get("name") or match.get("away_name", "Visita")
+        league_slug = match.get("league", {}).get("slug", "desconocida")
 
-        # 1. Obtención y extracción de promedios cuantitativos
-        analysis_data = call_isports("/sport/football/analysis", params={"matchId": match_id})
-        lambda_corners, lambda_shots = extract_averages(analysis_data)
+        # 2. Consultar el endpoint de estadísticas detalladas para el evento en TheStatsAPI
+        match_detail = call_thestats_api(f"/matches/{match_id}")
+        if not match_detail:
+            match_detail = call_thestats_api(f"/stats/{match_id}")
 
-        # 2. Extracción de cuotas reales (/sport/football/odds)
-        odds_data = call_isports("/sport/football/odds", params={"matchId": match_id})
-        market_odds_corners = "1.83"
-        market_odds_shots = "1.85"
+        lambda_corners, lambda_shots = parse_thestats_metrics(match_detail or match)
 
-        if isinstance(odds_data, list) and len(odds_data) > 0:
-            bookie = odds_data[0]
-            # Mapeo de cuotas según la respuesta de la API
-            c_odds = bookie.get("corners", {}).get("over_price") or bookie.get("handicap", {}).get("over")
-            s_odds = bookie.get("shots", {}).get("over_price") or bookie.get("handicap", {}).get("over")
-            if c_odds: market_odds_corners = str(c_odds)
-            if s_odds: market_odds_shots = str(s_odds)
+        # REGLA DE ORO DE UN APOSTADOR FRÍO: Si no hay datos duros reales de TheStatsAPI, SE DESCARTA.
+        if lambda_corners is None and lambda_shots is None:
+            print(f"⚠️ Omitido [Sin datos cuantitativos en TheStatsAPI]: {home_team} vs {away_team}")
+            continue
 
-        # 3. Motor Poisson (Filtro Estricto >= 80% Probabilidad de Acierto)
-        safe_corners, prob_c = get_safe_line(lambda_corners, threshold=0.80)
-        safe_shots, prob_s = get_safe_line(lambda_shots, threshold=0.80)
+        analyzed_count += 1
 
+        # 3. Obtener cuotas de mercado (Referencia)
+        c_odds, s_odds = call_isports_odds(match_id)
+
+        # 4. Cálculo de Distribución Poisson (Umbral ≥ 80%)
+        safe_corners, prob_c = get_safe_line(lambda_corners, threshold=0.80) if lambda_corners else (None, 0)
+        safe_shots, prob_s = get_safe_line(lambda_shots, threshold=0.80) if lambda_shots else (None, 0)
+
+        # Si se valida alguna Línea Segura, se emite el Pick
         if safe_corners or safe_shots:
+            picks_count += 1
             report_text = (
-                f"### 🏆 [PICK DETECTADO] {home_name} vs {away_name}\n"
-                f"* **Liga ID:** `{league_id}` | **Match ID:** `{match_id}`\n"
-                f"* **Hora de Análisis:** `{datetime.now().strftime('%H:%M:%S')} UTC`\n\n"
+                f"### 🏆 [PICK THESTATSAPI] {home_team} vs {away_team}\n"
+                f"* **Liga:** `{league_slug}` | **ID TheStatsAPI:** `{match_id}`\n"
+                f"* **Fecha/Hora:** `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC`\n\n"
             )
             
             if safe_corners:
                 report_text += (
                     f"* 🚩 **Córners:** Apuesta a **{safe_corners}**\n"
-                    f"  * Proyección ($\lambda$): `{lambda_corners:.2f}` | Probabilidad: **{prob_c*100:.1f}%**\n"
-                    f"  * Cuota Referencia iSportsAPI: `{market_odds_corners}`\n"
+                    f"  * Proyección Real TheStatsAPI ($\lambda$): `{lambda_corners:.2f}`\n"
+                    f"  * Probabilidad Matemáticamente Calculada: **{prob_c*100:.1f}%**\n"
+                    f"  * Cuota Referencia: `{c_odds}`\n"
                 )
             if safe_shots:
                 report_text += (
                     f"* 🎯 **Remates al Arco:** Apuesta a **{safe_shots}**\n"
-                    f"  * Proyección ($\lambda$): `{lambda_shots:.2f}` | Probabilidad: **{prob_s*100:.1f}%**\n"
-                    f"  * Cuota Referencia iSportsAPI: `{market_odds_shots}`\n"
+                    f"  * Proyección Real TheStatsAPI ($\lambda$): `{lambda_shots:.2f}`\n"
+                    f"  * Probabilidad Matemáticamente Calculada: **{prob_s*100:.1f}%**\n"
+                    f"  * Cuota Referencia: `{s_odds}`\n"
                 )
 
             print(report_text)
             save_report(report_text)
 
-        time.sleep(0.3)
+        time.sleep(0.2)
+
+    print(f"\n✅ Análisis completado: {analyzed_count} partidos procesados con datos reales de TheStatsAPI. {picks_count} picks detectados con proba ≥ 80%.")
 
 if __name__ == "__main__":
-    process_top_games()
+    process_thestats_pipeline()

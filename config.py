@@ -3,12 +3,14 @@ import requests
 import numpy as np
 from scipy.stats import poisson
 
+# Claves de API desde GitHub Secrets / Variables de Entorno
 THESTATS_KEY = os.environ.get("THESTATS_API_KEY")
 ISPORTS_KEY = os.environ.get("ISPORTS_API_KEY")
 
 THESTATS_BASE = "https://api.thestatsapi.com/api"
 ISPORTS_BASE = "https://api.isportsapi.com"
 
+# Lista de torneos para ordenar por prioridad de liquidez
 TOP_COMPETITIONS = [
     "premier league", "la liga", "laliga", "serie a", "bundesliga",
     "ligue 1", "champions league", "brasileirao", "liga mx", "copa libertadores"
@@ -17,20 +19,20 @@ TOP_COMPETITIONS = [
 def call_thestats_api(path, params=None):
     """
     Conector robusto para TheStatsAPI.
-    Maneja la autenticación por Query Parameter y por Header Bearer Token.
+    Maneja la autenticación mediante query parameter e incluye el header estándar.
     """
     if params is None:
         params = {}
 
     url = f"{THESTATS_BASE}{path}"
     
-    # Intento 1: Pasando api_key en los parámetros de la URL
+    # Inyección de clave api_key según requerimientos de TheStatsAPI
     params_with_key = params.copy()
     params_with_key["api_key"] = THESTATS_KEY
 
     headers = {
         "Accept": "application/json",
-        "Authorization": f"Bearer {THESTATS_KEY}" # Header alternativo
+        "Authorization": f"Bearer {THESTATS_KEY}"
     }
 
     try:
@@ -38,21 +40,20 @@ def call_thestats_api(path, params=None):
         if res.status_code == 200:
             return res.json()
         elif res.status_code == 401:
-            # Intento 2: Fallback pasando 'key' en lugar de 'api_key'
+            # Fallback a parámetro 'key' alternativo
             params_with_key2 = params.copy()
             params_with_key2["key"] = THESTATS_KEY
             res2 = requests.get(url, params=params_with_key2, timeout=10)
             if res2.status_code == 200:
                 return res2.json()
 
-        print(f"⚠️ HTTP {res.status_code} en endpoint {path}")
         return None
     except Exception as e:
         print(f"❌ Error conectando a TheStatsAPI ({path}): {e}")
         return None
 
 def call_isports_odds(match_id):
-    """Consulta de cuotas en iSportsAPI."""
+    """Consulta de referencia para cuotas en iSportsAPI."""
     if not ISPORTS_KEY:
         return "N/A", "N/A"
     
@@ -73,7 +74,7 @@ def call_isports_odds(match_id):
 def get_safe_line(lambda_total, threshold=0.80):
     """
     Motor Poisson Quantitative Engine
-    Calcula la línea de Over más alta con P(X > k) >= 80%
+    Calcula la línea de Over más alta con probabilidad acumulada P(X > k) >= 80%
     """
     if not lambda_total or lambda_total <= 0:
         return None, 0.0

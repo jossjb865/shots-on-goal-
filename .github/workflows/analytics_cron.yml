@@ -1,12 +1,12 @@
-name: GoalAnalytics Engine (Local Reports)
+name: GoalAnalytics & Odds Engine
 
 on:
   schedule:
-    - cron: '0 * * * *' # Ejecución cada hora
-  workflow_dispatch:     # Permite ejecución manual desde el celular
+    - cron: '0 * * * *' # Ejecución automática cada hora
+  workflow_dispatch:     # Permite ejecución manual desde tu dispositivo móvil
 
 permissions:
-  contents: write # Otorga permiso para guardar archivos en el repositorio
+  contents: write # Permiso para guardar archivos en la carpeta /reportes
 
 jobs:
   run-pipeline:

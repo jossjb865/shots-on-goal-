@@ -136,3 +136,143 @@
 
 ---
 
+### 🏆 [PICK DETECTADO] AS Tiga Sport vs Auckland City
+* **Liga ID:** `13452` | **Match ID:** `498078923`
+* **Hora de Análisis:** `10:14:44 UTC`
+
+* 🚩 **Córners:** Apuesta a **Over 6.5**
+  * Proyección ($\lambda$): `9.60` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.83`
+* 🎯 **Remates al Arco:** Apuesta a **Over 5.5**
+  * Proyección ($\lambda$): `8.40` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.85`
+
+
+---
+
+### 🏆 [PICK DETECTADO] Atenas vs Kimberley Mar del Plata
+* **Liga ID:** `172627` | **Match ID:** `239085038`
+* **Hora de Análisis:** `10:14:47 UTC`
+
+* 🚩 **Córners:** Apuesta a **Over 6.5**
+  * Proyección ($\lambda$): `9.60` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.83`
+* 🎯 **Remates al Arco:** Apuesta a **Over 5.5**
+  * Proyección ($\lambda$): `8.40` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.85`
+
+
+---
+
+### 🏆 [PICK DETECTADO] Forward Madison FC vs Greenville Triumph
+* **Liga ID:** `123623` | **Match ID:** `381355923`
+* **Hora de Análisis:** `10:14:50 UTC`
+
+* 🚩 **Córners:** Apuesta a **Over 6.5**
+  * Proyección ($\lambda$): `9.60` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.83`
+* 🎯 **Remates al Arco:** Apuesta a **Over 5.5**
+  * Proyección ($\lambda$): `8.40` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.85`
+
+
+---
+
+### 🏆 [PICK DETECTADO] Fast Clube AM vs Unidos do Alvorada AM
+* **Liga ID:** `248620` | **Match ID:** `202826031`
+* **Hora de Análisis:** `10:14:53 UTC`
+
+* 🚩 **Córners:** Apuesta a **Over 6.5**
+  * Proyección ($\lambda$): `9.60` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.83`
+* 🎯 **Remates al Arco:** Apuesta a **Over 5.5**
+  * Proyección ($\lambda$): `8.40` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.85`
+
+
+---
+
+### 🏆 [PICK DETECTADO] Huntsville City vs Crown Legacy FC
+* **Liga ID:** `134322` | **Match ID:** `243285035`
+* **Hora de Análisis:** `10:14:56 UTC`
+
+* 🚩 **Córners:** Apuesta a **Over 6.5**
+  * Proyección ($\lambda$): `9.60` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.83`
+* 🎯 **Remates al Arco:** Apuesta a **Over 5.5**
+  * Proyección ($\lambda$): `8.40` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.85`
+
+
+---
+
+### 🏆 [PICK DETECTADO] Monterrey vs Nashville SC
+* **Liga ID:** `118425` | **Match ID:** `395716929`
+* **Hora de Análisis:** `10:14:59 UTC`
+
+* 🚩 **Córners:** Apuesta a **Over 6.5**
+  * Proyección ($\lambda$): `9.60` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.83`
+* 🎯 **Remates al Arco:** Apuesta a **Over 5.5**
+  * Proyección ($\lambda$): `8.40` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.85`
+
+
+---
+
+### 🏆 [PICK DETECTADO] San Martin Mendoza vs Sol de Mayo
+* **Liga ID:** `172627` | **Match ID:** `250185032`
+* **Hora de Análisis:** `10:15:02 UTC`
+
+* 🚩 **Córners:** Apuesta a **Over 6.5**
+  * Proyección ($\lambda$): `9.60` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.83`
+* 🎯 **Remates al Arco:** Apuesta a **Over 5.5**
+  * Proyección ($\lambda$): `8.40` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.85`
+
+
+---
+
+### 🏆 [PICK DETECTADO] Cruzeiro vs Flamengo
+* **Liga ID:** `1987` | **Match ID:** `371819927`
+* **Hora de Análisis:** `10:15:05 UTC`
+
+* 🚩 **Córners:** Apuesta a **Over 6.5**
+  * Proyección ($\lambda$): `9.60` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.83`
+* 🎯 **Remates al Arco:** Apuesta a **Over 5.5**
+  * Proyección ($\lambda$): `8.40` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.85`
+
+
+---
+
+### 🏆 [PICK DETECTADO] CSD Antofagasta vs Santiago Wanderers
+* **Liga ID:** `11168` | **Match ID:** `347262922`
+* **Hora de Análisis:** `10:15:08 UTC`
+
+* 🚩 **Córners:** Apuesta a **Over 6.5**
+  * Proyección ($\lambda$): `9.60` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.83`
+* 🎯 **Remates al Arco:** Apuesta a **Over 5.5**
+  * Proyección ($\lambda$): `8.40` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.85`
+
+
+---
+
+### 🏆 [PICK DETECTADO] San Marcos de Arica vs Union San Felipe
+* **Liga ID:** `11168` | **Match ID:** `318262920`
+* **Hora de Análisis:** `10:15:11 UTC`
+
+* 🚩 **Córners:** Apuesta a **Over 6.5**
+  * Proyección ($\lambda$): `9.60` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.83`
+* 🎯 **Remates al Arco:** Apuesta a **Over 5.5**
+  * Proyección ($\lambda$): `8.40` | Probabilidad: **84.3%**
+  * Cuota Referencia iSportsAPI: `1.85`
+
+
+---
+

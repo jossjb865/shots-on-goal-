@@ -9,7 +9,7 @@ from config import (
 )
 
 def save_report(content):
-    """Guarda el reporte en la carpeta /reportes del repositorio."""
+    """Guarda los reportes dentro de la carpeta /reportes del repositorio."""
     os.makedirs("reportes", exist_ok=True)
     filename = f"reportes/lineas_seguras_{datetime.now().strftime('%Y-%m-%d')}.md"
     with open(filename, "a", encoding="utf-8") as f:
@@ -17,56 +17,57 @@ def save_report(content):
 
 def get_team_stats_avg(team_id, last_n=5):
     """
-    Obtiene los partidos finalizados del equipo y calcula sus promedios
-    reales de córners y remates a partir de /football/matches/{match_id}/stats
+    Obtiene los promedios reales de córners y remates de un equipo.
+    Estrategia de 2 niveles:
+    1. Extrae /stats del historial de partidos finalizados (/football/matches).
+    2. Fallback a promedios generales de temporada (/football/teams/{team_id}/stats).
     """
     if not team_id:
         return 0.0, 0.0
 
-    # 1. Partidos finalizados del equipo
+    # NIVEL 1: Partidos finalizados recientes
     matches_res = call_thestats_api("/football/matches", params={
         "team_id": team_id,
         "status": "finished",
         "per_page": last_n
     })
 
-    if not matches_res or "data" not in matches_res:
-        return 0.0, 0.0
-
-    finished_matches = matches_res.get("data", [])
-    if not finished_matches:
-        return 0.0, 0.0
-
     corners_list = []
     shots_list = []
 
-    # 2. Iterar cada partido para extraer /stats
-    for m in finished_matches:
-        match_id = m.get("id")
-        if not match_id:
-            continue
+    if matches_res and "data" in matches_res and len(matches_res["data"]) > 0:
+        for m in matches_res["data"]:
+            match_id = m.get("id")
+            if not match_id:
+                continue
 
-        stats_res = call_thestats_api(f"/football/matches/{match_id}/stats")
-        if not stats_res or "data" not in stats_res:
-            continue
+            stats_res = call_thestats_api(f"/football/matches/{match_id}/stats")
+            if stats_res and "data" in stats_res:
+                stats_data = stats_res.get("data", {})
+                is_home = (m.get("home_team", {}).get("id") == team_id)
+                prefix = "home" if is_home else "away"
 
-        stats_data = stats_res.get("data", {})
-        
-        # Determinar si el equipo jugó de Local o Visitante en ese partido
-        is_home = (m.get("home_team", {}).get("id") == team_id)
-        prefix = "home" if is_home else "away"
+                c = stats_data.get(f"{prefix}_corners") or stats_data.get("corners", {}).get(prefix) or 0
+                s = stats_data.get(f"{prefix}_shots_on_target") or stats_data.get("shots_on_target", {}).get(prefix) or 0
 
-        # Extraer métricas del payload
-        c = stats_data.get(f"{prefix}_corners") or stats_data.get("corners", {}).get(prefix) or 0
-        s = stats_data.get(f"{prefix}_shots_on_target") or stats_data.get("shots_on_target", {}).get(prefix) or 0
+                if c > 0: corners_list.append(float(c))
+                if s > 0: shots_list.append(float(s))
 
-        corners_list.append(float(c))
-        shots_list.append(float(s))
+    # Si se obtuvieron datos por partido, calcular la media
+    if corners_list or shots_list:
+        avg_c = (sum(corners_list) / len(corners_list)) if corners_list else 0.0
+        avg_s = (sum(shots_list) / len(shots_list)) if shots_list else 0.0
+        return avg_c, avg_s
 
-    avg_c = (sum(corners_list) / len(corners_list)) if corners_list else 0.0
-    avg_s = (sum(shots_list) / len(shots_list)) if shots_list else 0.0
+    # NIVEL 2 (FALLBACK): /football/teams/{team_id}/stats
+    team_stats_res = call_thestats_api(f"/football/teams/{team_id}/stats")
+    if team_stats_res and "data" in team_stats_res:
+        t_data = team_stats_res.get("data", {})
+        avg_c = float(t_data.get("corners_per_game") or t_data.get("corners_avg") or t_data.get("avg_corners") or 0.0)
+        avg_s = float(t_data.get("shots_on_target_per_game") or t_data.get("shots_on_target_avg") or t_data.get("avg_shots_on_target") or 0.0)
+        return avg_c, avg_s
 
-    return avg_c, avg_s
+    return 0.0, 0.0
 
 def process_pipeline():
     print("🚀 Consultando partidos programados desde TheStatsAPI...")
@@ -78,7 +79,7 @@ def process_pipeline():
     })
 
     if not scheduled_res or "data" not in scheduled_res:
-        print("❌ No se pudieron recuperar partidos programados. Revisa la THESTATS_API_KEY.")
+        print("❌ No se pudieron recuperar partidos programados. Revisa la validación de la API Key.")
         return
 
     raw_matches = scheduled_res.get("data", [])
@@ -92,12 +93,12 @@ def process_pipeline():
         if today_str in utc_date_str or not utc_date_str:
             todays_matches.append(match)
 
-    print(f"📌 Partidos seleccionados para hoy ({today_str}): {len(todays_matches)}")
+    print(f"📌 Partidos filtrados para hoy/activos: {len(todays_matches)}")
 
-    # Si no hay partidos exactamente para hoy, se toma una muestra de los primeros 15
-    candidates = todays_matches if len(todays_matches) > 0 else raw_matches[:15]
+    # Si la lista del día es pequeña, procesar los primeros 20 eventos del lote
+    candidates = todays_matches if len(todays_matches) > 0 else raw_matches[:20]
 
-    # Ordenar por competiciones de mayor importancia
+    # Ordenar por relevancia de ligas
     def competition_rank(m):
         comp_name = str(m.get("competition", {}).get("name", "")).lower()
         for i, top in enumerate(TOP_COMPETITIONS):
@@ -123,24 +124,24 @@ def process_pipeline():
         home_name = home_team_obj.get("name", "Local")
         away_name = away_team_obj.get("name", "Visita")
 
-        # 2. Extracción de Promedios Históricos Reales
+        # 2. Extracción de promedios reales mediante arquitectura de 2 niveles
         home_c_avg, home_s_avg = get_team_stats_avg(home_id, last_n=5)
         away_c_avg, away_s_avg = get_team_stats_avg(away_id, last_n=5)
 
         lambda_corners = home_c_avg + away_c_avg
         lambda_shots = home_s_avg + away_s_avg
 
-        # Si no hay suficiente historial registrado para los equipos, omitir
+        # Si no se obtienen datos duros, se omite el partido (Regla de Control de Riesgo)
         if lambda_corners == 0 and lambda_shots == 0:
-            print(f"⚠️ Omitido [Sin historial suficiente en /stats]: {home_name} vs {away_name}")
+            print(f"⚠️ Omitido [Sin métricas verificables en TheStatsAPI]: {home_name} vs {away_name}")
             continue
 
         processed_count += 1
 
-        # 3. Consulta de cuotas en iSportsAPI
+        # 3. Cuotas de mercado en iSportsAPI
         c_odds, s_odds = call_isports_odds(match_id)
 
-        # 4. Cálculo del Modelo Poisson (Probabilidad >= 80%)
+        # 4. Cálculo de Distribución Poisson (Probabilidad >= 80%)
         safe_corners, prob_c = get_safe_line(lambda_corners, threshold=0.80) if lambda_corners > 0 else (None, 0)
         safe_shots, prob_s = get_safe_line(lambda_shots, threshold=0.80) if lambda_shots > 0 else (None, 0)
 
@@ -156,14 +157,14 @@ def process_pipeline():
                 report_text += (
                     f"* 🚩 **Córners:** Apuesta a **{safe_corners}**\n"
                     f"  * Proyección Real ($\lambda$): `{lambda_corners:.2f}` (Local: {home_c_avg:.1f} + Visita: {away_c_avg:.1f})\n"
-                    f"  * Probabilidad Calculada: **{prob_c*100:.1f}%**\n"
+                    f"  * Probabilidad Matemáticamente Calculada: **{prob_c*100:.1f}%**\n"
                     f"  * Cuota Referencia: `{c_odds}`\n"
                 )
             if safe_shots:
                 report_text += (
                     f"* 🎯 **Remates al Arco:** Apuesta a **{safe_shots}**\n"
                     f"  * Proyección Real ($\lambda$): `{lambda_shots:.2f}` (Local: {home_s_avg:.1f} + Visita: {away_s_avg:.1f})\n"
-                    f"  * Probabilidad Calculada: **{prob_s*100:.1f}%**\n"
+                    f"  * Probabilidad Matemáticamente Calculada: **{prob_s*100:.1f}%**\n"
                     f"  * Cuota Referencia: `{s_odds}`\n"
                 )
 
@@ -172,7 +173,7 @@ def process_pipeline():
 
         time.sleep(0.2)
 
-    print(f"\n✅ Pipeline finalizado: {processed_count} eventos evaluados con promedios reales. {picks_count} picks generados con proba ≥ 80%.")
+    print(f"\n✅ Pipeline finalizado: {processed_count} eventos evaluados con datos reales. {picks_count} picks generados con proba ≥ 80%.")
 
 if __name__ == "__main__":
     process_pipeline()

@@ -9,35 +9,50 @@ ISPORTS_KEY = os.environ.get("ISPORTS_API_KEY")
 THESTATS_BASE = "https://api.thestatsapi.com/api"
 ISPORTS_BASE = "https://api.isportsapi.com"
 
-# Ligas Élite para filtrar (IDs o Keywords)
 TOP_COMPETITIONS = [
     "premier league", "la liga", "laliga", "serie a", "bundesliga",
     "ligue 1", "champions league", "brasileirao", "liga mx", "copa libertadores"
 ]
 
-def get_thestats_headers():
-    """Autenticación exacta según la documentación oficial de TheStatsAPI."""
-    return {
-        "x-api-key": THESTATS_KEY,
-        "Accept": "application/json"
+def call_thestats_api(path, params=None):
+    """
+    Conector robusto para TheStatsAPI.
+    Maneja la autenticación por Query Parameter y por Header Bearer Token.
+    """
+    if params is None:
+        params = {}
+
+    url = f"{THESTATS_BASE}{path}"
+    
+    # Intento 1: Pasando api_key en los parámetros de la URL
+    params_with_key = params.copy()
+    params_with_key["api_key"] = THESTATS_KEY
+
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {THESTATS_KEY}" # Header alternativo
     }
 
-def call_thestats_api(path, params=None):
-    """Conector base para TheStatsAPI."""
-    url = f"{THESTATS_BASE}{path}"
     try:
-        res = requests.get(url, headers=get_thestats_headers(), params=params, timeout=10)
+        res = requests.get(url, headers=headers, params=params_with_key, timeout=10)
         if res.status_code == 200:
             return res.json()
-        else:
-            print(f"⚠️ HTTP {res.status_code} en endpoint {path}")
-            return None
+        elif res.status_code == 401:
+            # Intento 2: Fallback pasando 'key' en lugar de 'api_key'
+            params_with_key2 = params.copy()
+            params_with_key2["key"] = THESTATS_KEY
+            res2 = requests.get(url, params=params_with_key2, timeout=10)
+            if res2.status_code == 200:
+                return res2.json()
+
+        print(f"⚠️ HTTP {res.status_code} en endpoint {path}")
+        return None
     except Exception as e:
         print(f"❌ Error conectando a TheStatsAPI ({path}): {e}")
         return None
 
 def call_isports_odds(match_id):
-    """Consulta secundaria de cuotas en iSportsAPI."""
+    """Consulta de cuotas en iSportsAPI."""
     if not ISPORTS_KEY:
         return "N/A", "N/A"
     
